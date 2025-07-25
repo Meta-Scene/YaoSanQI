@@ -1,27 +1,73 @@
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import * as Cesium from 'cesium';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
+const viewer = ref(null);
+const screenshotCount = ref(0);
 
 const goToHome = () => {
-    router.push('/home');
+    if(localStorage.getItem('account')=='admin'){
+        router.push('/home');
+    }else{
+        router.push('/login');
+    }
+};
+
+//截图函数
+const takeScreenshot = () => {
+  if (!viewer.value) return;
+
+  //下一帧重新渲染（保险）（
+  viewer.value.scene.requestRender();
+
+  //监听“真正渲染完成”
+  const removeListener = viewer.value.scene.postRender.addEventListener(() => {
+    //只执行一次
+    removeListener();
+    //获取canvas 没获取到return
+    const canvas = viewer.value.canvas;
+    if (!canvas || canvas.width === 0) return;
+    //把canvas转成二进制
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+
+      // 从loacaStorage中存取
+      let screenshots = JSON.parse(localStorage.getItem('cesium_screenshots') || '[]');
+      if (screenshots.length >= 4) screenshots.shift();
+      screenshots.push({ id: Date.now(), dataUrl: url, timestamp: new Date().toLocaleString() });
+      localStorage.setItem('cesium_screenshots', JSON.stringify(screenshots));
+      // 触发截图事件 它是跨组件的 任何组件都能监听
+      window.dispatchEvent(new CustomEvent('screenshot-taken'));
+      alert(`截图已保存，共 ${screenshots.length} 张`);
+    });
+  });
+};
+
+// 键盘事件监听
+const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+        takeScreenshot();
+    }
 };
 
 onMounted(() => {
     //设置cesium的token 页面的登陆提示就没了
     Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhNTZhYmJhYi04NTdiLTRjYmYtOWU2NC01OTBhYWJiOTBjMzgiLCJpZCI6MzExNDg2LCJpYXQiOjE3NDk2OTYxMzB9.uSAsttJXzI25DnO2DMDFanIwLM2OlJTJUSFsDjBbxIg'
-    const viewer = new Cesium.Viewer('cesiumContainer', {
-        // 可选：去除默认控件（如时间轴、动画控件等）
+    viewer.value = new Cesium.Viewer('cesiumContainer', {
         animation: false,
-        //是否播放动画
         animation: false,
-        //是否显示时间轴
         timeline: false,
-        creditContainer: "creditContainer",// 去除数据来源
+        creditContainer: "creditContainer",
     });
-
+    
+    // 按回车截图
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // 获取已有截图数量
+    const screenshots = JSON.parse(localStorage.getItem('cesium_screenshots') || '[]');
+    screenshotCount.value = screenshots.length;
 });
 </script>
 
@@ -58,13 +104,9 @@ body {
 .home-button {
     position: absolute;
     top: 5px;
-    /* Align with Cesium toolbar */
     right: 200px;
-    /* Position to the left of the toolbar */
     z-index: 410;
-    /* Ensure it's above the Cesium canvas */
     height: 32px;
-    /* Match Cesium button height */
     display: flex;
     align-items: center;
     padding: 0 12px;
@@ -78,4 +120,18 @@ body {
 .home-button:hover {
     background-color: #007bff;
 }
+
+.screenshot-hint {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    z-index: 100;
+}
+
+
 </style>
