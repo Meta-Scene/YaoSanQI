@@ -39,7 +39,7 @@ const generateMockData = () => {
       totalTime,
       missileInfo: {
         launchSite: ['四川发射基地', '北京发射中心', '海南发射场', '内蒙古发射站'][Math.floor(Math.random() * 4)],
-        missileType: ['远程导弹', '中程导弹', '近程导弹', '战略导弹'][Math.floor(Math.random() * 4)],
+        missileType: ['远程目标', '中程目标', '近程目标', '战略目标'][Math.floor(Math.random() * 4)],
         trajectory: ['抛物线轨迹', '直线轨迹', '复合轨迹', '变轨轨迹'][Math.floor(Math.random() * 4)]
       }
     });
@@ -128,7 +128,7 @@ const handleSizeChange = (val) => {
 const dialogVisible = ref(false);
 const currentMissileInfo = ref(null);
 
-// 查看导弹信息
+// 查看目标信息
 const handleViewMissileInfo = (row) => {
   currentMissileInfo.value = row.missileInfo;
   dialogVisible.value = true;
@@ -213,20 +213,20 @@ const handleDelete = (row) => {
         <el-table-column prop="totalTime" label="总时间" ></el-table-column>
         <el-table-column label="操作"  fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="handleViewMissileInfo(scope.row)">导弹信息</el-button>
+            <el-button size="small" @click="handleViewMissileInfo(scope.row)">目标信息</el-button>
             <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
     
-    <!-- 导弹信息弹窗 -->
-    <el-dialog v-model="dialogVisible" title="导弹详细信息" width="30%">
+    <!-- 目标信息弹窗 -->
+    <el-dialog v-model="dialogVisible" title="目标详细信息" width="30%">
       <div v-if="currentMissileInfo" class="missile-info">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="发射地">{{ currentMissileInfo.launchSite }}</el-descriptions-item>
-          <el-descriptions-item label="导弹种类">{{ currentMissileInfo.missileType }}</el-descriptions-item>
-          <el-descriptions-item label="导弹运行路径">{{ currentMissileInfo.trajectory }}</el-descriptions-item>
+          <el-descriptions-item label="目标种类">{{ currentMissileInfo.missileType }}</el-descriptions-item>
+          <el-descriptions-item label="目标运行路径">{{ currentMissileInfo.trajectory }}</el-descriptions-item>
         </el-descriptions>
       </div>
       <template #footer>

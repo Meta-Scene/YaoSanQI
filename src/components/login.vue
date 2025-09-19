@@ -27,7 +27,7 @@ const handleSubmit = async() => {
 <template>
     <div class="login-wrapper">
       <form @submit.prevent="handleSubmit" class="login-container" novalidate>
-        <h1>导弹管理平台</h1>
+        <h1>目标管理平台</h1>
         <div class="form-group">
           <label for="account">账号</label>
           <input

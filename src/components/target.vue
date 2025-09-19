@@ -7,15 +7,15 @@
         </div>
         <div class="right">
             <div class="info-panel">
-                <div class="info-header">导弹基本信息</div>
+                <div class="info-header">目标基本信息</div>
                 <div class="info-item">
                     <div class="info-label">发射地</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">导弹种类</div>
+                    <div class="info-label">目标种类</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">导弹运行路径</div>
+                    <div class="info-label">目标运行路径</div>
                 </div>
             </div>
         </div>

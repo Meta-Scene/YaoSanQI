@@ -10,7 +10,7 @@ const goToHome=()=>{
         <div class="header">
             <div class="logo">
                 <img src="../assets/rocket.png" alt="">
-                <span>导弹管理平台</span>
+                <span>目标管理平台</span>
             </div>
             <router-link to="/" class="back" @click="goToHome">返回首页</router-link>
         </div>
