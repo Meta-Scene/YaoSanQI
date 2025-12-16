@@ -6,49 +6,49 @@ const routes = [
     {
         path: '/',
         name: 'cesium',
-        component: () => import('@/components/cesium.vue'),
+        component: () => import('@/views/Cesium.vue'),
     },
     {
         path: '/login',
         name:'login',
-        component: () => import('@/components/login.vue'),
+        component: () => import('@/views/Login.vue'),
     },
     {
         path: '/home',
         name: 'home',
         meta: { requiresAuth: true },
-        component: () => import('@/components/home.vue'),
+        component: () => import('@/layouts/BasicLayout.vue'),
         redirect:'/record',
         children:[
             {
                 name:'record',
                 path:'/record',
                 meta: { requiresAuth: true },
-                component: () => import('@/components/record.vue'),
+                component: () => import('@/views/Record.vue'),
             },
             {
                 name:'target',
                 path:'/target',
                 meta: { requiresAuth: true },
-                component: () => import('@/components/target.vue'),
+                component: () => import('@/views/Target.vue'),
             },
             {
                 name:'instrument',
                 path:'/instrument',
                 meta: { requiresAuth: true },
-                component: () => import('@/components/instrument.vue'),
+                component: () => import('@/views/Instrument.vue'),
             },
             {
                 name:'spectrum',
                 path:'/spectrum',
                 meta: { requiresAuth: true },
-                component: () => import('@/components/spectrum.vue'),
+                component: () => import('@/views/Spectrum.vue'),
             },
             {
                 name:'detection',
                 path:'/detection',
                 meta: { requiresAuth: true },
-                component: () => import('@/components/detection.vue'),
+                component: () => import('@/views/Detection.vue'),
             }
         ]
     },
