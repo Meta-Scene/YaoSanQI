@@ -12,13 +12,16 @@ const TOTAL_SECONDS = 420
 const PEAK_HEIGHT_M = 1_200_000
 const SAMPLES = 360
 
-// NOTE: 现在轨迹“永久存在”，所以不再用 trailTime 控制消失
-// 如果你还想保留“发光拖尾”的效果，可以把 trailTime 设很大或直接关掉 path
+// 轨迹永久存在：由 polyline 累积点实现
+const PATH_SAMPLE_INTERVAL_SEC = 0.5
+
+// 是否额外开启 Cesium PathGraphics（可留 false）
 const KEEP_PATH_GRAPHICS = false
 
-// 导弹图标（Wikimedia Commons SVG）
+// ✅ 改动 1：使用 PNG（稳定显示）
+// 来源：Wikimedia 的 SVG 缩略图 PNG 输出
 const MISSILE_ICON_URL =
-  'https://commons.wikimedia.org/wiki/Special:FilePath/Picto%20icon%20missile.svg'
+  'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Picto_icon_missile.svg/320px-Picto_icon_missile.svg.png'
 
 // ========== 访问后台 ==========
 const goToAdmin = () => {
@@ -82,17 +85,11 @@ const hideSelectedInfo = () => {
   selectedInfo.alt = ''
 }
 
-// ========== 轨迹永久累积：每个导弹一个数组 ==========
+// ========== 轨迹永久累积 ==========
 /**
  * missilePaths[id] = Cesium.Cartesian3[]
- * 轨迹点持续 append，不会消失
  */
 const missilePaths = new Map()
-
-/**
- * 防止每帧都 push（太密），做一个节流：每隔 X 秒追加一次
- */
-const PATH_SAMPLE_INTERVAL_SEC = 0.5
 const lastPathSampleTime = new Map()
 
 // 工具：随机经纬度
@@ -107,7 +104,7 @@ const randomLonLat = () => {
 const smoothstep = (x) => x * x * (3 - 2 * x)
 const clamp01 = (x) => Math.max(0, Math.min(1, x))
 
-// 更真实弹道样本：大圆 + 三段高度
+// 更真实弹道：大圆 + 三段高度 + 中段更久
 const buildBallisticSamples = (start, end, startTime) => {
   const ellipsoid = Cesium.Ellipsoid.WGS84
   const startCarto = Cesium.Cartographic.fromDegrees(start.lon, start.lat, 0)
@@ -125,7 +122,7 @@ const buildBallisticSamples = (start, end, startTime) => {
     }
     if (u < boostFrac + midFrac) {
       const t = (u - boostFrac) / midFrac
-      const dome = 1 - Math.pow(2 * t - 1, 2)
+      const dome = 1 - Math.pow(2 * t - 1, 2) // 0..1..0
       return PEAK_HEIGHT_M * (0.92 + 0.08 * dome)
     }
     const t = smoothstep((u - (boostFrac + midFrac)) / reentryFrac)
@@ -151,6 +148,7 @@ const buildBallisticSamples = (start, end, startTime) => {
     const u = uTime(i)
     const cartoOnArc = geodesic.interpolateUsingFraction(u, new Cesium.Cartographic())
     const h = heightAt(u)
+
     const pos = Cesium.Cartesian3.fromRadians(
       cartoOnArc.longitude,
       cartoOnArc.latitude,
@@ -203,7 +201,7 @@ const createMissile = () => {
   missilePaths.set(id, [])
   lastPathSampleTime.set(id, startTime.clone())
 
-  // 轨迹线实体：使用 CallbackProperty，让 polyline 实时读取数组（永久累积）
+  // 轨迹线实体（永久）：CallbackProperty 读数组
   const polylinePositions = new Cesium.CallbackProperty(() => {
     const arr = missilePaths.get(id)
     return arr ? arr : []
@@ -213,7 +211,7 @@ const createMissile = () => {
     id: `${id}_track`,
     polyline: {
       positions: polylinePositions,
-      width: 3,
+      width: 2,
       material: new Cesium.PolylineGlowMaterialProperty({
         glowPower: 0.18,
         color: Cesium.Color.CYAN,
@@ -222,7 +220,7 @@ const createMissile = () => {
     },
   })
 
-  // 导弹实体（图标）
+  // 导弹实体
   const missileEntity = v.entities.add({
     id,
     position,
@@ -235,12 +233,14 @@ const createMissile = () => {
       horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
       alignedAxis: Cesium.Cartesian3.ZERO,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      // 给一个轻微颜色，避免透明/白底导致看不见（可按需删掉）
+      color: Cesium.Color.WHITE,
     },
     ...(KEEP_PATH_GRAPHICS
       ? {
           path: new Cesium.PathGraphics({
             leadTime: 0,
-            trailTime: 999999, // 极大值：基本等于不消失（但仍是“时间窗”逻辑）
+            trailTime: 999999,
             width: 2,
             material: new Cesium.PolylineGlowMaterialProperty({
               glowPower: 0.12,
@@ -259,12 +259,10 @@ const createMissile = () => {
 const bindMissilePathRecorder = () => {
   const v = viewer.value
   if (!v) return
-
   if (v.__pathRecorderBound) return
   v.__pathRecorderBound = true
 
   v.clock.onTick.addEventListener(() => {
-    // 遍历所有导弹
     for (const [id, arr] of missilePaths.entries()) {
       const ent = v.entities.getById(id)
       if (!ent) continue
@@ -272,7 +270,6 @@ const bindMissilePathRecorder = () => {
       const now = v.clock.currentTime
       const lastT = lastPathSampleTime.get(id)
       const dt = lastT ? Cesium.JulianDate.secondsDifference(now, lastT) : 999
-
       if (dt < PATH_SAMPLE_INTERVAL_SEC) continue
 
       const pos = ent.position?.getValue(now)
@@ -284,7 +281,7 @@ const bindMissilePathRecorder = () => {
   })
 }
 
-// 点击导弹显示实时经纬度
+// ✅ 改动 2：点击拾取用 drillPick，优先导弹而不是线
 const bindPickToShowRealtime = () => {
   const v = viewer.value
   if (!v) return
@@ -298,22 +295,48 @@ const bindPickToShowRealtime = () => {
   clickHandler.value = handler
 
   handler.setInputAction((movement) => {
-    const picked = v.scene.pick(movement.position)
-    if (!Cesium.defined(picked) || !picked.id) {
+    // 取鼠标位置下所有对象，优先导弹本体
+    const picks = v.scene.drillPick(movement.position, 10)
+
+    let missileEntity = null
+    for (const p of picks) {
+      const e = p?.id
+      if (e?.id && typeof e.id === 'string' && e.id.startsWith('missile_') && !e.id.endsWith('_track')) {
+        missileEntity = e
+        break
+      }
+    }
+
+    // 兜底：如果 drillPick 没有，尝试普通 pick
+    if (!missileEntity) {
+      const picked = v.scene.pick(movement.position)
+      missileEntity = picked?.id || null
+    }
+
+    if (!missileEntity?.id || typeof missileEntity.id !== 'string') {
       hideSelectedInfo()
       return
     }
 
-    const entity = picked.id
-    if (!entity.id || typeof entity.id !== 'string' || !entity.id.startsWith('missile_')) {
+    // 如果点到轨迹线，映射回导弹本体
+    if (missileEntity.id.endsWith('_track')) {
+      const baseId = missileEntity.id.replace(/_track$/, '')
+      const baseEntity = v.entities.getById(baseId)
+      if (baseEntity) missileEntity = baseEntity
+      else {
+        hideSelectedInfo()
+        return
+      }
+    }
+
+    if (!missileEntity.id.startsWith('missile_')) {
       hideSelectedInfo()
       return
     }
 
     selectedInfo.visible = true
-    selectedInfo.id = entity.id
-
-    updateSelectedInfo(entity)
+    selectedInfo.id = missileEntity.id
+    updateSelectedInfo(missileEntity)
 
     if (!v.__missileOnTickBound) {
       v.__missileOnTickBound = true
@@ -333,7 +356,6 @@ const bindPickToShowRealtime = () => {
 const updateSelectedInfo = (entity) => {
   const v = viewer.value
   if (!v) return
-
   const time = v.clock.currentTime
   const pos = entity.position?.getValue(time)
   if (!pos) return
@@ -344,7 +366,6 @@ const updateSelectedInfo = (entity) => {
   selectedInfo.alt = carto.height.toFixed(1)
 }
 
-// 执行：生成导弹 + 关闭弹窗
 const runSimulation = () => {
   if (!simForm.trajectory || !simForm.prototypeType || !simForm.atmosphere || !simForm.aerosol) {
     alert('请先完成所有选项选择')
@@ -599,7 +620,7 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
 }
 
-/* 右下角导弹信息 */
+/* 导弹信息 */
 .missile-info {
   position: absolute;
   right: 1.2vw;
