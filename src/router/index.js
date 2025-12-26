@@ -1,22 +1,25 @@
 
 import { createRouter, createWebHashHistory } from "vue-router";
+import { getAuth } from "@/utils/auth";
 
 
 const routes = [
     {
         path: '/',
         name: 'cesium',
+        meta: { requiresAuth: true, roles: ['user','admin'] },
         component: () => import('@/views/Cesium.vue'),
     },
     {
         path: '/login',
         name:'login',
+        meta: { public: true },
         component: () => import('@/views/Login.vue'),
     },
     {
         path: '/home',
         name: 'home',
-        meta: { requiresAuth: true },
+        meta: { requiresAuth: true, roles: ['admin'] },
         component: () => import('@/layouts/BasicLayout.vue'),
         redirect:'/record',
         children:[
@@ -50,6 +53,13 @@ const routes = [
                 meta: { requiresAuth: true },
                 component: () => import('@/views/Detection.vue'),
             }
+            ,
+            {
+                name:'invite',
+                path:'/invite',
+                meta: { requiresAuth: true },
+                component: () => import('@/views/Invite.vue'),
+            },
         ]
     },
 
@@ -60,17 +70,29 @@ const router = createRouter({
     routes,
 });
 
-//路由拦截
+// 路由拦截（登录前置 + 分级权限）
 router.beforeEach((to, from, next) => {
-    if (to.meta.requiresAuth) {
-      const token = localStorage.getItem('account')
-      if (!token) {
-        next({ path: '/login', query: { redirect: to.fullPath } })
-      } else {
-        next()
-      }
-    } else {
-      next() 
-    }
-  })
+  const auth = getAuth()
+
+  // 已登录访问登录页：直接跳转到对应首页
+  if (to.path === '/login' && auth?.token) {
+    return next(auth.role === 'admin' ? '/home' : '/')
+  }
+
+  // 公共路由放行
+  if (to.meta.public) return next()
+
+  // 其余页面都需要登录
+  if (!auth?.token) {
+    return next({ path: '/login', query: { redirect: to.fullPath } })
+  }
+
+  // 角色校验
+  if (to.meta.roles && Array.isArray(to.meta.roles) && !to.meta.roles.includes(auth.role)) {
+    return next(auth.role === 'admin' ? '/home' : '/')
+  }
+
+  next()
+})
+
 export default router

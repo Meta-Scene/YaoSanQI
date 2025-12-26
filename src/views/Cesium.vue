@@ -2,6 +2,10 @@
 import { onMounted, onBeforeUnmount, ref, reactive } from 'vue'
 import * as Cesium from 'cesium'
 import { useRouter } from 'vue-router'
+import { getAuth } from '@/utils/auth'
+import TopActions from '@/components/cesium/TopActions.vue'
+import MissileInfoPanel from '@/components/cesium/MissileInfoPanel.vue'
+import SimModal from '@/components/cesium/SimModal.vue'
 
 const router = useRouter()
 const viewer = ref(null)
@@ -25,8 +29,10 @@ const MISSILE_ICON_URL =
 
 // ========== 访问后台 ==========
 const goToAdmin = () => {
-  if (localStorage.getItem('account') === 'admin') router.push('/home')
-  else router.push('/login')
+  const auth = getAuth()
+  if (!auth?.token) return router.push('/login')
+  if (auth.role === 'admin') return router.push('/home')
+  alert('仅管理员可访问后台')
 }
 
 // ========== 仿真进程弹窗 ==========
@@ -34,7 +40,17 @@ const showSimModal = ref(false)
 const openSimModal = () => (showSimModal.value = true)
 const closeSimModal = () => (showSimModal.value = false)
 
+// 三维地球拾取坐标：下一次点击地球写入表单
+const pickMode = ref(null) // 'launch' | 'impact' | null
+const startPick = (mode) => {
+  pickMode.value = mode
+}
+
 const options = {
+  targetType: [
+    { label: 'A型', value: 'A' },
+    { label: 'B型', value: 'B' },
+  ],
   trajectory: [
     { label: '轨迹A（示例）', value: 'traj_a' },
     { label: '轨迹B（示例）', value: 'traj_b' },
@@ -54,18 +70,30 @@ const options = {
 }
 
 const simForm = reactive({
-  trajectory: '',
-  prototypeType: '',
-  atmosphere: '',
-  aerosol: '',
+  target: {
+    type: '',
+    launchLon: '',
+    launchLat: '',
+    impactLon: '',
+    impactLat: '',
+  },
+  prototype: {
+    orbitHeightKm: 500,
+    filterBuiltin: 'default_filter.csv',
+    filterCustomFileName: '',
+    optics: { focalMm: 200, apertureMm: 200, fNumber: 1.0, efficiency: 0.85 },
+    detectorPreset: 'preset_a',
+    detector: { scale: '512x512', pixelUm: 10, qe: 0.75, readNoiseDn: 5 },
+    opticsTempC: 25,
+    integrationMs: 20,
+  },
+  other: {
+    trajectory: '',
+    prototypeType: '',
+    atmosphere: '',
+    aerosol: '',
+  }
 })
-
-const resetSimForm = () => {
-  simForm.trajectory = ''
-  simForm.prototypeType = ''
-  simForm.atmosphere = ''
-  simForm.aerosol = ''
-}
 
 // ========== 选中导弹实时信息 ==========
 let missileCounter = 0
@@ -295,6 +323,26 @@ const bindPickToShowRealtime = () => {
   clickHandler.value = handler
 
   handler.setInputAction((movement) => {
+    // 如果处于“拾取坐标”模式：优先取地球位置并写入表单
+    if (pickMode.value) {
+      const cartesian = v.camera.pickEllipsoid(movement.position, v.scene.globe.ellipsoid)
+      if (cartesian) {
+        const carto = Cesium.Cartographic.fromCartesian(cartesian)
+        const lon = Number(Cesium.Math.toDegrees(carto.longitude).toFixed(6))
+        const lat = Number(Cesium.Math.toDegrees(carto.latitude).toFixed(6))
+        if (pickMode.value === 'launch') {
+          simForm.target.launchLon = lon
+          simForm.target.launchLat = lat
+        } else if (pickMode.value === 'impact') {
+          simForm.target.impactLon = lon
+          simForm.target.impactLat = lat
+        }
+        pickMode.value = null
+        return
+      }
+    }
+
+
     // 取鼠标位置下所有对象，优先导弹本体
     const picks = v.scene.drillPick(movement.position, 10)
 
@@ -367,8 +415,12 @@ const updateSelectedInfo = (entity) => {
 }
 
 const runSimulation = () => {
-  if (!simForm.trajectory || !simForm.prototypeType || !simForm.atmosphere || !simForm.aerosol) {
-    alert('请先完成所有选项选择')
+  // 基础校验（可按需继续细化）
+  if (!simForm.target.type) return alert('请选择目标类型')
+  if (simForm.target.launchLon === '' || simForm.target.launchLat === '') return alert('请填写发射点经纬度')
+  if (simForm.target.impactLon === '' || simForm.target.impactLat === '') return alert('请填写落点经纬度')
+  if (!simForm.other.trajectory || !simForm.other.prototypeType || !simForm.other.atmosphere || !simForm.other.aerosol) {
+    alert('请在“其他参数”页完成目标轨迹/样机类型/大气/气溶胶选择')
     return
   }
   createMissile()
@@ -411,77 +463,19 @@ onBeforeUnmount(() => {
     <div id="cesiumContainer"></div>
     <div id="creditContainer" class="hidden-credit"></div>
 
-    <div class="top-right-actions">
-      <button class="action-button" @click="goToAdmin">访问后台</button>
-      <button class="action-button" @click="openSimModal">仿真进程</button>
-    </div>
+    <TopActions @go-admin="goToAdmin" @open-sim="openSimModal" />
 
-    <div v-if="selectedInfo.visible" class="missile-info">
-      <div class="missile-info-title">已选中：{{ selectedInfo.id }}</div>
-      <div class="missile-info-row">经度：{{ selectedInfo.lon }}</div>
-      <div class="missile-info-row">纬度：{{ selectedInfo.lat }}</div>
-      <div class="missile-info-row">高度：{{ selectedInfo.alt }} m</div>
-      <button class="missile-info-close" @click="hideSelectedInfo">关闭</button>
-    </div>
+    <MissileInfoPanel :info="selectedInfo" @close="hideSelectedInfo" />
 
-    <div v-if="showSimModal" class="modal-mask" @click.self="closeSimModal">
-      <div class="modal">
-        <div class="modal-header">
-          <div class="modal-title">仿真进程</div>
-          <button class="modal-close" @click="closeSimModal">×</button>
-        </div>
-
-        <div class="modal-body">
-          <div class="form-grid">
-            <div class="form-item">
-              <label class="form-label">目标轨迹</label>
-              <select class="form-select" v-model="simForm.trajectory">
-                <option value="" disabled>请选择目标轨迹</option>
-                <option v-for="o in options.trajectory" :key="o.value" :value="o.value">
-                  {{ o.label }}
-                </option>
-              </select>
-            </div>
-
-            <div class="form-item">
-              <label class="form-label">样机类型</label>
-              <select class="form-select" v-model="simForm.prototypeType">
-                <option value="" disabled>请选择样机类型</option>
-                <option v-for="o in options.prototypeType" :key="o.value" :value="o.value">
-                  {{ o.label }}
-                </option>
-              </select>
-            </div>
-
-            <div class="form-item">
-              <label class="form-label">大气轮廓线</label>
-              <select class="form-select" v-model="simForm.atmosphere">
-                <option value="" disabled>请选择大气轮廓线</option>
-                <option v-for="o in options.atmosphere" :key="o.value" :value="o.value">
-                  {{ o.label }}
-                </option>
-              </select>
-            </div>
-
-            <div class="form-item">
-              <label class="form-label">气溶胶模型</label>
-              <select class="form-select" v-model="simForm.aerosol">
-                <option value="" disabled>请选择气溶胶模型</option>
-                <option v-for="o in options.aerosol" :key="o.value" :value="o.value">
-                  {{ o.label }}
-                </option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button class="action-button ghost" @click="resetSimForm">重置</button>
-          <button class="action-button" @click="runSimulation">执行</button>
-          <button class="action-button" @click="closeSimModal">关闭</button>
-        </div>
-      </div>
-    </div>
+    <SimModal
+      :visible="showSimModal"
+      :form="simForm"
+      :options="options"
+      @close="closeSimModal"
+      @pickLaunch="startPick('launch')"
+      @pickImpact="startPick('impact')"
+      @run="runSimulation"
+    />
   </div>
 </template>
 

@@ -1,7 +1,15 @@
 <script setup>
+import { useRouter } from 'vue-router'
+import { clearAuth } from '@/utils/auth'
 import { Menu as IconMenu, Location,VideoCamera,Box,Aim, Document, Compass } from '@element-plus/icons-vue'
-const goToHome=()=>{
-    localStorage.removeItem('account')
+const router = useRouter()
+const goToEarth = () => {
+  router.push('/')
+}
+
+const logout = () => {
+  clearAuth()
+  router.replace('/login')
 }
 
 </script>
@@ -12,7 +20,10 @@ const goToHome=()=>{
                 <img src="../assets/rocket.png" alt="">
                 <span>目标管理平台</span>
             </div>
-            <router-link to="/" class="back" @click="goToHome">返回首页</router-link>
+            <div class="header-actions">
+            <a class="back" href="javascript:void(0)" @click="goToEarth">返回地球</a>
+            <a class="back logout" href="javascript:void(0)" @click="logout">登出</a>
+          </div>
         </div>
         <div class="nav">
             <el-menu
@@ -41,6 +52,10 @@ const goToHome=()=>{
                 <el-menu-item index="/detection" key="detection">
                     <el-icon><Aim /></el-icon>
                     <span>目标检测与识别</span>
+                </el-menu-item>
+                <el-menu-item index="/invite" key="invite">
+                    <el-icon><IconMenu /></el-icon>
+                    <span>邀请码管理</span>
                 </el-menu-item>
             </el-menu>
         </div>
@@ -79,6 +94,8 @@ const goToHome=()=>{
                 margin-left: 10px;
             }
         }
+        .header-actions{display:flex;gap:12px;align-items:center;}
+
         .back{
             text-decoration-line: none;
             color: #fff;
