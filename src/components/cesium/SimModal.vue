@@ -22,6 +22,7 @@
                 <option value="" disabled>请选择目标类型</option>
                 <option v-for="o in options.targetType" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
+              <div class="hint">已自动填入默认值，可直接执行</div>
             </div>
 
             <div class="form-item two-col">
@@ -33,7 +34,7 @@
                 <input class="form-input" type="number" v-model.number="form.target.launchLat" placeholder="-90~90" />
                 <button class="mini-btn" @click="$emit('pickLaunch')">三维拾取</button>
               </div>
-              <div class="hint">经度限制：-180～180；纬度限制：-90～90</div>
+              <div class="hint">经度限制：-180～180；纬度限制：-90～90（已填默认值）</div>
             </div>
 
             <div class="form-item two-col">
@@ -45,7 +46,7 @@
                 <input class="form-input" type="number" v-model.number="form.target.impactLat" placeholder="-90~90" />
                 <button class="mini-btn" @click="$emit('pickImpact')">三维拾取</button>
               </div>
-              <div class="hint">经度限制：-180～180；纬度限制：-90～90</div>
+              <div class="hint">经度限制：-180～180；纬度限制：-90～90（已填默认值）</div>
             </div>
 
             <div class="form-item two-col">
@@ -62,7 +63,7 @@
             <div class="form-item two-col">
               <label class="form-label">可选性提示</label>
               <div class="info">
-                用于说明：可通过鼠标左键在地球上拾取坐标；拾取完成后会自动写入发射点/落点输入框。
+                可通过鼠标左键在地球上拾取坐标；拾取完成后会自动写入发射点/落点输入框。
               </div>
             </div>
           </div>
@@ -75,7 +76,7 @@
               <label class="form-label">轨道高度 (km)</label>
               <input class="form-input" type="number" v-model.number="form.prototype.orbitHeightKm" @blur="validateOrbitHeight" />
               <div v-if="orbitHeightError" class="error">{{ orbitHeightError }}</div>
-              <div class="hint">数值型输入，超出范围提示“请输入 400-600km 内的数值”；组网模式下所有样机统一高度。</div>
+              <div class="hint">数值型输入，范围建议 400～600km（已设默认值）</div>
             </div>
 
             <div class="form-item two-col">
@@ -102,12 +103,12 @@
                     <div class="subitem">
                       <span class="mini">焦距 (mm)</span>
                       <input class="form-input" type="number" v-model.number="form.prototype.optics.focalMm" @input="recalcFNumber" />
-                      <div class="hint">50～500mm</div>
+                      <div class="hint">50～500mm（已设默认值）</div>
                     </div>
                     <div class="subitem">
                       <span class="mini">口径 (mm)</span>
                       <input class="form-input" type="number" v-model.number="form.prototype.optics.apertureMm" @input="recalcFNumber" />
-                      <div class="hint">100～500mm</div>
+                      <div class="hint">100～500mm（已设默认值）</div>
                     </div>
                     <div class="subitem">
                       <span class="mini">F 数</span>
@@ -117,7 +118,7 @@
                     <div class="subitem">
                       <span class="mini">系统光学效率</span>
                       <input class="form-input" type="number" step="0.01" v-model.number="form.prototype.optics.efficiency" />
-                      <div class="hint">0.6～0.95</div>
+                      <div class="hint">0.6～0.95（已设默认值）</div>
                     </div>
                   </div>
                 </div>
@@ -141,22 +142,22 @@
                     <div class="subitem">
                       <span class="mini">规模 (像素)</span>
                       <input class="form-input" v-model="form.prototype.detector.scale" placeholder="512x512" />
-                      <div class="hint">128×128～2048×2048</div>
+                      <div class="hint">128×128～2048×2048（已设默认值）</div>
                     </div>
                     <div class="subitem">
                       <span class="mini">像元尺寸 (μm)</span>
                       <input class="form-input" type="number" v-model.number="form.prototype.detector.pixelUm" />
-                      <div class="hint">5～20μm</div>
+                      <div class="hint">5～20μm（已设默认值）</div>
                     </div>
                     <div class="subitem">
                       <span class="mini">QE</span>
                       <input class="form-input" type="number" step="0.01" v-model.number="form.prototype.detector.qe" />
-                      <div class="hint">0.6～0.9</div>
+                      <div class="hint">0.6～0.9（已设默认值）</div>
                     </div>
                     <div class="subitem">
                       <span class="mini">读出噪声 (DN)</span>
                       <input class="form-input" type="number" v-model.number="form.prototype.detector.readNoiseDn" />
-                      <div class="hint">1～20 DN</div>
+                      <div class="hint">1～20 DN（已设默认值）</div>
                     </div>
                   </div>
                   <div class="hint">量子效率表征光子-电信号转换能力；读出噪声影响探测信噪比。</div>
@@ -168,14 +169,14 @@
               <label class="form-label">光机温度 (℃)</label>
               <input class="form-input" type="number" step="0.1" v-model.number="form.prototype.opticsTempC" @blur="validateOpticsTemp" />
               <div v-if="opticsTempWarn" class="warn">{{ opticsTempWarn }}</div>
-              <div class="hint">-10℃～50℃；保留 1 位小数。</div>
+              <div class="hint">-10℃～50℃（已设默认值）</div>
             </div>
 
             <div class="form-item">
               <label class="form-label">积分时间 (ms)</label>
               <input class="form-input" type="number" step="1" v-model.number="form.prototype.integrationMs" @blur="validateIntegration" />
               <div v-if="integrationError" class="error">{{ integrationError }}</div>
-              <div class="hint">仅支持整数输入，范围 1～100ms。</div>
+              <div class="hint">整数范围 1～100ms（已设默认值）</div>
             </div>
 
             <div class="form-item two-col">
@@ -204,6 +205,7 @@
                 <option value="" disabled>请选择目标轨迹</option>
                 <option v-for="o in options.trajectory" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
+              <div class="hint">已自动填入默认值，可直接执行</div>
             </div>
 
             <div class="form-item">
@@ -212,6 +214,7 @@
                 <option value="" disabled>请选择样机类型</option>
                 <option v-for="o in options.prototypeType" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
+              <div class="hint">已自动填入默认值，可直接执行</div>
             </div>
 
             <div class="form-item">
@@ -220,6 +223,7 @@
                 <option value="" disabled>请选择大气轮廓线</option>
                 <option v-for="o in options.atmosphere" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
+              <div class="hint">已自动填入默认值，可直接执行</div>
             </div>
 
             <div class="form-item">
@@ -228,6 +232,7 @@
                 <option value="" disabled>请选择气溶胶模型</option>
                 <option v-for="o in options.aerosol" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
+              <div class="hint">已自动填入默认值，可直接执行</div>
             </div>
 
             <div class="form-item two-col">
@@ -256,7 +261,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -275,6 +280,49 @@ const opticsTempWarn = ref('')
 const targetImageUrl = ref('')
 const targetImageName = ref('')
 const filterFileName = ref('')
+
+/**
+ * ✅ 必要输入项默认值（只在打开弹窗时补齐，不强行覆盖用户已填内容）
+ */
+function ensureRequiredDefaults(){
+  const f = props.form
+  const opt = props.options
+
+  // 1) 目标参数：目标类型 + 发射点 + 落点
+  if (!f.target.type) {
+    f.target.type = opt?.targetType?.[0]?.value ?? 'A'
+  }
+
+  // 如果是空字符串/空值才补默认
+  if (f.target.launchLon === '' || f.target.launchLon === null || typeof f.target.launchLon === 'undefined') f.target.launchLon = 110.0
+  if (f.target.launchLat === '' || f.target.launchLat === null || typeof f.target.launchLat === 'undefined') f.target.launchLat = 30.0
+  if (f.target.impactLon === '' || f.target.impactLon === null || typeof f.target.impactLon === 'undefined') f.target.impactLon = 120.0
+  if (f.target.impactLat === '' || f.target.impactLat === null || typeof f.target.impactLat === 'undefined') f.target.impactLat = 40.0
+
+  // 3) 其他参数：4 个下拉
+  if (!f.other.trajectory) f.other.trajectory = opt?.trajectory?.[0]?.value ?? 'traj_a'
+  if (!f.other.prototypeType) f.other.prototypeType = opt?.prototypeType?.[0]?.value ?? 'proto_01'
+  if (!f.other.atmosphere) f.other.atmosphere = opt?.atmosphere?.[0]?.value ?? 'atm_std'
+  if (!f.other.aerosol) f.other.aerosol = opt?.aerosol?.[0]?.value ?? 'aero_urban'
+
+  // 2) 样机参数：你原本就有默认值，这里只做一次联动/校验
+  recalcFNumber()
+  applyDetectorPreset()
+  validateOrbitHeight()
+  validateIntegration()
+  validateOpticsTemp()
+}
+
+/**
+ * ✅ 仅在弹窗打开时补默认值
+ */
+watch(
+  () => props.visible,
+  (v) => {
+    if (v) ensureRequiredDefaults()
+  },
+  { immediate: true }
+)
 
 function validateOrbitHeight(){
   orbitHeightError.value = ''
@@ -385,8 +433,10 @@ function doClear(){
   orbitHeightError.value = ''
   integrationError.value = ''
   opticsTempWarn.value = ''
-}
 
+  // ✅ 清空后，如果弹窗还开着，再补齐“必要默认值”，避免执行按钮被你外层校验拦住
+  ensureRequiredDefaults()
+}
 </script>
 
 <style scoped>
