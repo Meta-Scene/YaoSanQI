@@ -2,7 +2,7 @@
 import { onMounted, onBeforeUnmount, ref, reactive } from 'vue'
 import * as Cesium from 'cesium'
 import { useRouter } from 'vue-router'
-import { getAuth } from '@/utils/auth'
+import { getAuth, clearAuth } from '@/utils/auth' // ✅ 增加 clearAuth
 import TopActions from '@/components/cesium/TopActions.vue'
 import MissileInfoPanel from '@/components/cesium/MissileInfoPanel.vue'
 import SimModal from '@/components/cesium/SimModal.vue'
@@ -33,6 +33,12 @@ const goToAdmin = () => {
   if (!auth?.token) return router.push('/login')
   if (auth.role === 'admin') return router.push('/home')
   alert('仅管理员可访问后台')
+}
+
+// ✅ 新增：登出（普通用户/管理员都可用，用于切换账号）
+const logout = () => {
+  clearAuth()
+  router.replace('/login')
 }
 
 // ========== 仿真进程弹窗 ==========
@@ -261,7 +267,6 @@ const createMissile = () => {
       horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
       alignedAxis: Cesium.Cartesian3.ZERO,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      // 给一个轻微颜色，避免透明/白底导致看不见（可按需删掉）
       color: Cesium.Color.WHITE,
     },
     ...(KEEP_PATH_GRAPHICS
@@ -341,7 +346,6 @@ const bindPickToShowRealtime = () => {
         return
       }
     }
-
 
     // 取鼠标位置下所有对象，优先导弹本体
     const picks = v.scene.drillPick(movement.position, 10)
@@ -463,7 +467,13 @@ onBeforeUnmount(() => {
     <div id="cesiumContainer"></div>
     <div id="creditContainer" class="hidden-credit"></div>
 
+    <!-- 你原来的右上角动作组件（保持不动） -->
     <TopActions @go-admin="goToAdmin" @open-sim="openSimModal" />
+
+    <!-- ✅ 新增：右上角登出按钮（普通用户也能切换到管理员） -->
+    <div class="top-right-logout">
+      <button class="action-button danger" @click="logout">登出</button>
+    </div>
 
     <MissileInfoPanel :info="selectedInfo" @close="hideSelectedInfo" />
 
@@ -522,6 +532,23 @@ onBeforeUnmount(() => {
 }
 .action-button.ghost:hover {
   background-color: #e8e8e8;
+}
+
+/* ✅ 新增：右上角登出按钮容器（不影响你原 top-right-actions） */
+.top-right-logout {
+  position: absolute;
+  top: 5vh;
+  right: 1.2vw; /* 放到最右侧 */
+  z-index: 410;
+  display: flex;
+}
+
+/* ✅ 新增：危险样式，但不破坏你原 action-button 体系 */
+.action-button.danger {
+  background-color: #ff4d4f;
+}
+.action-button.danger:hover {
+  background-color: #ff7875;
 }
 
 /* 弹窗 */
