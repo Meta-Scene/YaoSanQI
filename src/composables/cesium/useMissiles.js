@@ -1,9 +1,24 @@
 import { reactive } from 'vue'
 import * as Cesium from 'cesium'
 
-// 图标
-const MISSILE_ICON_URL =
-  'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Picto_icon_missile.svg/320px-Picto_icon_missile.svg.png'
+// ✅ 写死 SVG（导弹图标，不依赖外链）
+const MISSILE_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <g fill="none" stroke="white" stroke-width="6" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 机身 -->
+    <path d="M64 10 C52 24 48 40 48 58 v28 c0 8 6 14 16 14 s16-6 16-14V58 c0-18-4-34-16-48z" fill="white" opacity="0.95"/>
+    <!-- 头锥 -->
+    <path d="M64 10 L54 24 L74 24 Z" fill="white"/>
+    <!-- 尾喷 -->
+    <path d="M56 104 L64 118 L72 104 Z" fill="white" opacity="0.9"/>
+    <!-- 尾翼 -->
+    <path d="M48 78 L28 92 L48 92 Z" fill="white" opacity="0.9"/>
+    <path d="M80 78 L80 92 L100 92 Z" fill="white" opacity="0.9"/>
+  </g>
+</svg>
+`.trim()
+
+const MISSILE_ICON_URL = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(MISSILE_SVG)}`
 
 // 轨迹线采样间隔（轨迹“永久累积”用）
 const PATH_SAMPLE_INTERVAL_SEC = 0.5
@@ -13,46 +28,32 @@ const KEEP_PATH_GRAPHICS = false
 const smoothstep = (x) => x * x * (3 - 2 * x)
 const clamp01 = (x) => Math.max(0, Math.min(1, x))
 
-/**
- * 根据“输入项”决定弹道参数
- * 你可以继续扩展：不同目标类型、不同轨迹选项、不同大气/气溶胶影响等
- */
 function getTrajectoryParams(form) {
   const targetType = form?.target?.type || 'A'
   const traj = form?.other?.trajectory || 'traj_a'
 
-  // 默认基线
   let totalSeconds = 420
   let peakHeightM = 1_200_000
   let samples = 360
 
-  // 目标类型影响（示例：B 更高更久）
   if (targetType === 'B') {
     totalSeconds = 520
     peakHeightM = 1_600_000
     samples = 420
   }
 
-  // 轨迹选项影响（traj_b：更“平缓”更久中段）
-  // （这里不改 totalSeconds 也行，我给你做了轻微差异）
-  let profile = 'A' // 控制 heightAt/uTime 形态
+  let profile = 'A'
   if (traj === 'traj_b') profile = 'B'
 
   return { totalSeconds, peakHeightM, samples, targetType, traj, profile }
 }
 
-/**
- * 核心：根据输入起点/终点生成弹道采样（沿大圆 + 高度曲线）
- */
 function buildBallisticSamples({ start, end, startTime, totalSeconds, peakHeightM, samples, profile }) {
   const ellipsoid = Cesium.Ellipsoid.WGS84
   const startCarto = Cesium.Cartographic.fromDegrees(start.lon, start.lat, 0)
   const endCarto = Cesium.Cartographic.fromDegrees(end.lon, end.lat, 0)
   const geodesic = new Cesium.EllipsoidGeodesic(startCarto, endCarto, ellipsoid)
 
-  // 分段比例：A/B 两套（与你 SimModal 的 traj_a / traj_b 对应）
-  // A：上升/中段/再入 = 0.18/0.64/0.18（你原始）
-  // B：中段更长更平稳
   const seg =
     profile === 'B'
       ? { boost: 0.15, mid: 0.72, reentry: 0.13 }
@@ -62,7 +63,6 @@ function buildBallisticSamples({ start, end, startTime, totalSeconds, peakHeight
   const midFrac = seg.mid
   const reentryFrac = seg.reentry
 
-  // 高度曲线
   const heightAt = (u) => {
     if (u < boostFrac) {
       const t = smoothstep(u / boostFrac)
@@ -70,10 +70,9 @@ function buildBallisticSamples({ start, end, startTime, totalSeconds, peakHeight
     }
     if (u < boostFrac + midFrac) {
       const t = (u - boostFrac) / midFrac
-      // B：平台更“平”
       const dome =
         profile === 'B'
-          ? (1 - Math.pow(2 * t - 1, 4)) // 更平一点
+          ? (1 - Math.pow(2 * t - 1, 4))
           : (1 - Math.pow(2 * t - 1, 2))
       return peakHeightM * (0.90 + 0.10 * dome)
     }
@@ -81,7 +80,6 @@ function buildBallisticSamples({ start, end, startTime, totalSeconds, peakHeight
     return peakHeightM * (0.90 * (1 - t))
   }
 
-  // 时间重分配：让中段占用更久（B 更明显）
   const uTime = (i) => {
     const p = i / samples
     if (p < boostFrac) {
@@ -130,14 +128,12 @@ function normalizeLonLat(lon, lat) {
   const lo = Number(lon)
   const la = Number(lat)
   if (Number.isNaN(lo) || Number.isNaN(la)) return null
-  // 简单夹取
   const nlon = Math.max(-180, Math.min(180, lo))
   const nlat = Math.max(-90, Math.min(90, la))
   return { lon: nlon, lat: nlat }
 }
 
 export function useMissiles(viewerRef, simForm) {
-  // 选中导弹信息（面板）
   const selectedInfo = reactive({
     visible: false,
     id: '',
@@ -154,16 +150,12 @@ export function useMissiles(viewerRef, simForm) {
     selectedInfo.alt = ''
   }
 
-  // 轨迹永久累积点
-  const missilePaths = new Map() // id -> Cartesian3[]
+  const missilePaths = new Map()
   const lastPathSampleTime = new Map()
 
   let missileCounter = 0
   let pathRecorderBound = false
 
-  /**
-   * ✅ 现在 createMissile 由输入项决定 start/end
-   */
   const createMissile = () => {
     const v = viewerRef.value
     if (!v) return null
@@ -183,7 +175,7 @@ export function useMissiles(viewerRef, simForm) {
     const startTime = Cesium.JulianDate.now()
     const stopTime = Cesium.JulianDate.addSeconds(startTime, totalSeconds, new Cesium.JulianDate())
 
-    // 仍沿用你的逻辑：每次创建重置全局 clock（你要多导弹并行我再给你升级）
+    // 仍沿用你原逻辑：每次创建重置全局 clock（需要多导弹并行我再给你升级）
     v.clock.startTime = startTime.clone()
     v.clock.stopTime = stopTime.clone()
     v.clock.currentTime = startTime.clone()
@@ -203,11 +195,9 @@ export function useMissiles(viewerRef, simForm) {
     })
     const position = buildSampledPositionProperty(samplesArr)
 
-    // 轨迹数组准备
     missilePaths.set(id, [])
     lastPathSampleTime.set(id, startTime.clone())
 
-    // 轨迹线实体
     const polylinePositions = new Cesium.CallbackProperty(() => {
       const arr = missilePaths.get(id)
       return arr ? arr : []
@@ -226,7 +216,6 @@ export function useMissiles(viewerRef, simForm) {
       },
     })
 
-    // 导弹实体（挂 properties 方便调试/展示）
     const missileEntity = v.entities.add({
       id,
       position,
@@ -268,7 +257,6 @@ export function useMissiles(viewerRef, simForm) {
     return missileEntity
   }
 
-  // 每 tick 把导弹当前位置 append 到轨迹数组（永久存在）
   const bindMissilePathRecorder = () => {
     const v = viewerRef.value
     if (!v || pathRecorderBound) return

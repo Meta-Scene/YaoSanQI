@@ -35,7 +35,7 @@ export function usePicking(viewerRef, simForm, selectedInfo, hideSelectedInfo) {
     clickHandler.value = handler
 
     handler.setInputAction((movement) => {
-      // 处于拾取坐标模式：优先取地球位置并写入表单
+      // ========= 拾取坐标模式：只写表单，不做选中/跟随 =========
       if (pickMode.value) {
         const cartesian = v.camera.pickEllipsoid(movement.position, v.scene.globe.ellipsoid)
         if (cartesian) {
@@ -51,61 +51,68 @@ export function usePicking(viewerRef, simForm, selectedInfo, hideSelectedInfo) {
             simForm.target.impactLat = lat
           }
           pickMode.value = null
-          return
         }
+        return
       }
 
-      // ✅ drillPick：优先导弹本体
+      // ========= drillPick：优先导弹本体 =========
       const picks = v.scene.drillPick(movement.position, 10)
       let missileEntity = null
 
+      // 1) 先找导弹
       for (const p of picks) {
         const e = p?.id
-        if (e?.id && typeof e.id === 'string' && e.id.startsWith('missile_') && !e.id.endsWith('_track')) {
+        if (
+          e?.id &&
+          typeof e.id === 'string' &&
+          e.id.startsWith('missile_') &&
+          !e.id.endsWith('_track')
+        ) {
           missileEntity = e
           break
         }
       }
 
-      // 兜底：普通 pick
+      // 2) 如果只点到轨迹线，映射回导弹
       if (!missileEntity) {
-        const picked = v.scene.pick(movement.position)
-        missileEntity = picked?.id || null
-      }
-
-      if (!missileEntity?.id || typeof missileEntity.id !== 'string') {
-        hideSelectedInfo()
-        return
-      }
-
-      // 点到轨迹线 -> 映射回导弹
-
-      if (missileEntity.id.endsWith('_track')) {
-        const baseId = missileEntity.id.replace(/_track$/, '')
-        const baseEntity = v.entities.getById(baseId)
-        if (baseEntity) missileEntity = baseEntity
-        else {
-          hideSelectedInfo()
-          return
+        for (const p of picks) {
+          const e = p?.id
+          if (e?.id && typeof e.id === 'string' && e.id.endsWith('_track')) {
+            const baseId = e.id.replace(/_track$/, '')
+            const baseEntity = v.entities.getById(baseId)
+            if (baseEntity) {
+              missileEntity = baseEntity
+              break
+            }
+          }
         }
       }
 
-      if (!missileEntity.id.startsWith('missile_')) {
+      // ========= 点空白：清空选中与跟随 =========
+      if (!missileEntity?.id || typeof missileEntity.id !== 'string') {
+        v.selectedEntity = undefined
+        v.trackedEntity = undefined
         hideSelectedInfo()
         return
       }
+
+      // ========= ✅ 关键：让绿色框跟随导弹，并自动锁定跟随视角 =========
+      v.selectedEntity = missileEntity
+      v.trackedEntity = missileEntity
 
       selectedInfo.visible = true
       selectedInfo.id = missileEntity.id
       updateSelectedInfo(missileEntity)
 
-      // 实时更新（只绑定一次）
+      // tick 里只刷新信息面板（绿色框/相机跟随由 Cesium 自动处理）
       if (!v.__missileOnTickBound) {
         v.__missileOnTickBound = true
         v.clock.onTick.addEventListener(() => {
           if (!selectedInfo.visible) return
           const e = v.entities.getById(selectedInfo.id)
           if (!e) {
+            v.selectedEntity = undefined
+            v.trackedEntity = undefined
             hideSelectedInfo()
             return
           }
