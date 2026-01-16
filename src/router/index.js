@@ -2,20 +2,20 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import { getAuth } from "@/utils/auth";
 
 const routes = [
-  // ✅ 旧页面：保持不动（原来的 Cesium.vue）
+  // ✅ 默认首页直接指向新版（CesiumSimPage）
   {
     path: "/",
-    name: "cesium",
-    meta: { requiresAuth: true, roles: ["user", "admin"] },
-    component: () => import("@/views/Cesium.vue"),
-  },
-
-  // ✅ 新页面：拆分后的 CesiumSimPage.vue（并存）
-  {
-    path: "/sim",
     name: "cesium-sim",
     meta: { requiresAuth: true, roles: ["user", "admin"] },
     component: () => import("@/views/CesiumSimPage.vue"),
+  },
+
+  // （可选）保留旧页面入口，方便你对比
+  {
+    path: "/old",
+    name: "cesium-old",
+    meta: { requiresAuth: true, roles: ["user", "admin"] },
+    component: () => import("@/views/Cesium.vue"),
   },
 
   // 登录

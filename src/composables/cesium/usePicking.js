@@ -59,21 +59,41 @@ export function usePicking(viewerRef, simForm, selectedInfo, hideSelectedInfo) {
       const picks = v.scene.drillPick(movement.position, 10)
       let missileEntity = null
 
-      // 1) 先找导弹
+      // 1) ✅ 强优先：带 billboard 的导弹（点中图标时一定选它）
+      //    说明：Cesium 的 drillPick 返回顺序不稳定，且 polyline 很容易“抢点”。
+      //    我们先从 picks 里找有 billboard 的实体，从而让点击框锁定图标而不是轨迹线。
       for (const p of picks) {
         const e = p?.id
+        if (!e || typeof e !== 'object') continue
         if (
           e?.id &&
           typeof e.id === 'string' &&
           e.id.startsWith('missile_') &&
-          !e.id.endsWith('_track')
+          !e.id.endsWith('_track') &&
+          e.billboard
         ) {
           missileEntity = e
           break
         }
       }
 
-      // 2) 如果只点到轨迹线，映射回导弹
+      // 2) 次优先：导弹实体（哪怕没命中 billboard，也别选轨迹）
+      if (!missileEntity) {
+        for (const p of picks) {
+          const e = p?.id
+          if (
+            e?.id &&
+            typeof e.id === 'string' &&
+            e.id.startsWith('missile_') &&
+            !e.id.endsWith('_track')
+          ) {
+            missileEntity = e
+            break
+          }
+        }
+      }
+
+      // 3) 如果只点到轨迹线（_track），映射回导弹实体
       if (!missileEntity) {
         for (const p of picks) {
           const e = p?.id
