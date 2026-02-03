@@ -167,7 +167,7 @@ onBeforeUnmount(() => {
 .toolbar-left {
   position: absolute;
   top: 1.2vh;
-  right: 7.5vw;
+  right: 10.5vw;
   z-index: 420;
   display: flex;
   align-items: center;
